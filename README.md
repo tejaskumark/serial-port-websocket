@@ -11,3 +11,4 @@ Setup:
 - Access hompage in your browser
 
 ![image](https://user-images.githubusercontent.com/45988670/118764764-ab649400-b897-11eb-8dca-4889586ee5c7.png)
+![image](https://user-images.githubusercontent.com/45988670/118764968-fd0d1e80-b897-11eb-9b87-c990a3804feb.png)
