@@ -1,0 +1,28 @@
+ports:
+  - name: /dev/ttyUSB1
+    baudrate: 115200
+    desc: Testing-1
+  - name: /dev/ttyUSB2
+    baudrate: 115200
+    desc: Testing-2
+  - name: /dev/ttyUSB3
+    baudrate: 115200
+    desc: Testing-3
+  - name: /dev/ttyUSB4
+    baudrate: 115200
+    desc: Testing-4
+logs:
+  inlogs: /root/serial-port-websocket/logs/
+  outlogs: /root/serial-port-websocket/logs/
+  maxsize: 50 #Megabytes
+  maxbackups: 10 # Number of files
+  maxage: 30 # Days
+serverconfig:
+  - name: http
+    port: 8083
+    sslcert: na
+    sslkey: na
+  - https: https
+    port: 8084
+    sslcert: /root/serial-port-websocket/server.crt
+    sslkey: /etc/serial-port-websocket/server.key

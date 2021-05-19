@@ -1,0 +1,70 @@
+<html>
+
+<head>
+    <meta name="author" content="Tejaskumar Kasundra">
+    <div class="page-header" class="container-fluid"></div>
+</head>
+
+<head>
+    <title id="title"></title>
+</head>
+
+<script src="ui/xterm/lib/xterm.js"></script>
+<script src="ui/xterm/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+<link rel="stylesheet" href="ui/xterm/css/xterm.css" />
+<script>
+    var term;
+    var querystring = window.location.search.split("=").pop()
+    var websocket = new WebSocket("ws://" + window.location.hostname + ":" + window.location.port + "/serialconsole?portname=" + querystring);
+    websocket.binaryType = "arraybuffer";
+    document.title = "Port:" + querystring;
+
+    function ab2str(buf) {
+        return String.fromCharCode.apply(null, new Uint8Array(buf));
+    }
+
+    websocket.onopen = function (evt) {
+
+        const term = new Terminal({
+            screenKeys: true,
+            useStyle: true,
+            cursorBlink: true,
+        });
+        const fitaddon = new FitAddon.FitAddon();
+        term.loadAddon(fitaddon)
+
+        term.open(document.getElementById('xterm'));
+        fitaddon.fit();
+
+        term.onData((data) => {
+            if (websocket.readyState === 1) {
+                websocket.send(data);
+            }
+        });
+
+        websocket.onmessage = function (evt) {
+            if (evt.data instanceof ArrayBuffer) {
+                term.write(ab2str(evt.data));
+            } else {
+                alert(evt.data)
+            }
+        }
+
+        websocket.onclose = function (evt) {
+            term.write(" Session terminated.");
+            term.destroy();
+        }
+
+        websocket.onerror = function (evt) {
+            if (typeof console.log == "function") {
+                console.log(evt)
+            }
+        }
+    }
+</script>
+
+<body>
+    <div id="xterm" style="width: 100%; height: 100vh;"></div>
+</body>
+
+</html>
