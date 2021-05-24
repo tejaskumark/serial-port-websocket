@@ -11,7 +11,7 @@ Setup:
 - Access hompage in your browser
 
 TODO -
- - Need to add support to modify/delete/edit port from UI interface.
+ - Need to add support for HTTPS.
 
 ![image](https://user-images.githubusercontent.com/45988670/119341124-0be93c00-bcb1-11eb-81d7-11ce474022d4.png)
 ![image](https://user-images.githubusercontent.com/45988670/118764968-fd0d1e80-b897-11eb-9b87-c990a3804feb.png)
