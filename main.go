@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -21,10 +20,72 @@ var (
 	config Config
 )
 
+// Open ports and start reader in separate go routine and will be blocked
+// into reader when port is not in error state or will blocked in port
+// opening state when port having error while opening.
+func initializereader(pn string) {
+	go func(tmpname string) {
+		if all.ports[tmpname].status == 1 {
+			for {
+				var err error
+				if all.ports[tmpname].port == nil {
+					all.ports[tmpname].port, err = serial.OpenPort(&serial.Config{Name: tmpname,
+						Baud: all.ports[tmpname].baudrate})
+					if err == nil {
+						buf := make([]byte, 1024)
+						for {
+							select {
+							case <-all.ports[tmpname].stop:
+								log.Printf("Stopping mainreader for port:%s", tmpname)
+								all.ports[tmpname].ack <- struct{}{}
+								log.Printf("Stop ack send for mainreader port:%s", tmpname)
+								return
+							default:
+								number, err := all.ports[tmpname].port.Read(buf)
+								if err != nil {
+									log.Printf("Error receiving from stream %s", err)
+									all.ports[tmpname].port = nil
+									break
+								}
+								if buf == nil {
+									log.Printf("Buf is nil.")
+									all.ports[tmpname].port = nil
+									break
+								}
+								tmpstring := string(buf[:number])
+								_, _ = all.ports[tmpname].infilelogger.Write(buf[:number])
+								select {
+								case all.ports[tmpname].comm <- tmpstring:
+								default:
+								}
+							}
+						}
+					} else {
+						select {
+						case <-all.ports[tmpname].stop:
+							log.Printf("Stopping mainreader for port:%s", tmpname)
+							all.ports[tmpname].ack <- struct{}{}
+							log.Printf("Stop ack send for mainreader port:%s", tmpname)
+							return
+						default:
+							time.Sleep(10 * time.Second)
+							log.Printf("Error: %s opening port %s, will retry after 10Seconds.",
+								err, tmpname)
+						}
+
+					}
+				}
+			}
+		} else {
+			log.Printf("Port:%s status is disabled. Nothing to do.", tmpname)
+		}
+	}(pn)
+}
+
 func initialize() error {
 
 	// Parsing config yaml file to struct
-	err := config.ParseYaml(*conf)
+	err := config.parseYaml(*conf)
 	if err != nil {
 		return err
 	}
@@ -54,54 +115,11 @@ func initialize() error {
 	// Fill the ports map with appropriate values from yaml config.
 	all.ports = make(map[string]*serialport)
 	for _, value := range config.Ports {
-		all.ports[value.Name] = &serialport{name: value.Name, baudrate: value.Baudrate,
-			comm: make(chan string, 1024), errorstatus: make(chan struct{})}
-		all.ports[value.Name].infilelogger = &lumberjack.Logger{Filename: config.Logs.Inlogs + strings.Split(value.Name, "/")[2] + ".txt",
-			MaxSize: config.Logs.Maxsize, MaxAge: config.Logs.Maxage, MaxBackups: config.Logs.Maxbackups}
-		all.ports[value.Name].outfilelogger = &lumberjack.Logger{Filename: config.Logs.Outlogs + "out_" + strings.Split(value.Name, "/")[2],
-			MaxSize: config.Logs.Maxsize, MaxAge: config.Logs.Maxage, MaxBackups: config.Logs.Maxbackups}
-		all.ports[value.Name].clientactive.initialize()
+		all.addnewport(value.Name, value.Baudrate, value.Status)
 	}
 
-	// Open ports and start reader in separate go routine and will be blocked
-	// into reader when port is not in error state or will blocked in port
-	// opening state when port having error while opening.
-	for name, value := range all.ports {
-		go func(tmpname string, tmpvalue *serialport) {
-			for {
-				if all.ports[tmpname].port == nil {
-					all.ports[tmpname].port, err = serial.OpenPort(&serial.Config{Name: tmpname,
-						Baud: tmpvalue.baudrate})
-					if err == nil {
-						buf := make([]byte, 1024)
-						for {
-							number, err := all.ports[tmpname].port.Read(buf)
-							if err != nil {
-								log.Printf("Error receiving from stream %s\n", err)
-								break
-							}
-							if buf == nil {
-								log.Printf("Buf is nil.\n")
-								break
-							}
-							tmpstring := string(buf[:number])
-							_, _ = all.ports[tmpname].infilelogger.Write(buf[:number])
-							select {
-							case all.ports[tmpname].comm <- tmpstring:
-							default:
-							}
-						}
-						log.Printf("Error during reading port: %s\n", tmpname)
-						all.ports[tmpname].port = nil
-					} else {
-						time.Sleep(10 * time.Second)
-						log.Printf("Error opening port %s, will retry after 10Seconds.", tmpname)
-					}
-				} else {
-					log.Printf("Port is already opened:%s", tmpname)
-				}
-			}
-		}(name, value)
+	for name := range all.ports {
+		initializereader(name)
 	}
 	return nil
 }
