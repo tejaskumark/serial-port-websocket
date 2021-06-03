@@ -15,7 +15,16 @@
 <script>
     var term;
     var querystring = window.location.search.split("=").pop()
-    var websocket = new WebSocket("ws://" + window.location.hostname + ":" + window.location.port + "/serialconsole?portname=" + querystring);
+    console.log(window.location.protocol);
+    if (window.location.protocol == "http:") {
+        sockettype = "ws://"
+    } else if (window.location.protocol == "https:") {
+        sockettype = "wss://"
+    } else {
+        console.log("Unknown protocol setting socket type to wss.")
+        sockettype = "wss://"
+    }
+    var websocket = new WebSocket(sockettype + window.location.hostname + ":" + window.location.port + "/serialconsole?portname=" + querystring);
     websocket.binaryType = "arraybuffer";
     document.title = "Port:" + querystring;
 

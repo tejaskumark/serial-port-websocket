@@ -22,10 +22,12 @@ logs:
   maxage: 30 #Number of Days
 serverconfig:
   - name: http
+    enable: 1 #1-Enable 2-Disable
     port: 8083
     sslcert: na
     sslkey: na
-  - name: https #Not implemented yet.
-    port: 8084 #Not implemented yet.
-    sslcert: /root/serial-port-websocket/server.crt #Not implemented yet.
-    sslkey: /etc/serial-port-websocket/server.key #Not implemented yet.
+  - name: https
+    enable: 1 #1-Enable 2-Disable
+    port: 8084
+    sslcert: /root/serial-port-websocket/server.crt
+    sslkey: /etc/serial-port-websocket/server.key

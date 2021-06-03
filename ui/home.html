@@ -265,37 +265,37 @@
             var eleid = JSONConvert.Ports[i].Name.split("/").pop();
             var link = "window.open('" + window.location.protocol + "//" + window.location.hostname + ":" + window.location.port +
                 "/port?portname=" + JSONConvert.Ports[i].Name + "')"
-            var getconsole = CreateBtn("btn btn-info mr-2", "console-" + eleid,
+            var getconsole = CreateBtn("btn btn-sm btn-info mr-2", "console-" + eleid,
                 "Get Console", link)
             link = "window.open('" + window.location.protocol + "//" + window.location.hostname + ":" + window.location.port +
                 "/logs/')"
-            var getlogs = CreateBtn("btn btn-info mr-2", "logs-" + eleid,
+            var getlogs = CreateBtn("btn btn-sm btn-info mr-2", "logs-" + eleid,
                 "Get Logs", link)
             cell3.append(getconsole, getlogs);
             var eleid = JSONConvert.Ports[i].Name.split("/").pop();
             if (JSONConvert.Ports[i].Status == 1) {
-                var startstopport = createbutton("btn btn-danger mr-2", null, "startstop-" + eleid,
+                var startstopport = createbutton("btn btn-sm btn-danger mr-2", null, "startstop-" + eleid,
                     "Disable", "stopport('" + JSONConvert.Ports[i].Name + "')");
             } else if (JSONConvert.Ports[i].Status == 2) {
-                var startstopport = createbutton("btn btn-info mr-2", null, "startstop-" + eleid,
+                var startstopport = createbutton("btn btn-sm btn-info mr-2", null, "startstop-" + eleid,
                     "Enable", "startport('" + JSONConvert.Ports[i].Name + "')");
                 getlogs.disabled = true;
                 getconsole.disabled = true;
             } else if (JSONConvert.Ports[i].enabled == 3) {
-                var startstopport = createbutton("btn btn-danger mr-2", null, "startstop-" + eleid,
+                var startstopport = createbutton("btn btn-sm btn-danger mr-2", null, "startstop-" + eleid,
                     "Disabling", null);
                 getlogs.disabled = true;
                 getconsole.disabled = true;
             } else if (JSONConvert.Ports[i].enabled == 4) {
-                var startstopport = createbutton("btn btn-info mr-2", null, "submit-" + eleid,
+                var startstopport = createbutton("btn btn-sm btn-info mr-2", null, "submit-" + eleid,
                     "Enabling", null);
                 getlogs.disabled = true;
                 getconsole.disabled = true;
             }
-            del = createbutton("btn btn-danger", null, JSONConvert.Ports[i].Name,
+            del = createbutton("btn btn-sm btn-danger", null, JSONConvert.Ports[i].Name,
                 "Delete", "confirmdelete('" + JSONConvert.Ports[i].Name + "')");
             tmp = { "data-toggle": "modal", "data-target": "#editportmodal" };
-            edit = createbutton("btn btn-info mr-2", tmp, JSONConvert.Ports[i].Name,
+            edit = createbutton("btn btn-sm btn-info mr-2", tmp, JSONConvert.Ports[i].Name,
                 "Edit", null);
             row.insertCell(4).append(startstopport, edit, del);
         }

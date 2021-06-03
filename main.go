@@ -131,8 +131,33 @@ func main() {
 		return
 	}
 	r := createRouterRegisterPaths()
-	err := http.ListenAndServe(":8083", r)
-	if err != nil {
-		log.Printf("net.http could not listen on address 8083: %s\n", err)
+	errs := make(chan error)
+	for _, value := range config.ServerConfig {
+		if value.Enable == 1 {
+			if value.Name == "http" {
+				go func(port int) {
+					log.Printf("http server starting")
+					err := http.ListenAndServe(":"+strconv.Itoa(port), r)
+					if err != nil {
+						log.Printf("net.http could not listen: %s\n", err)
+						errs <- err
+					}
+				}(value.Port)
+			} else if value.Name == "https" {
+				go func(port int, sslcert string, sslkey string) {
+					log.Printf("https server starting")
+					err := http.ListenAndServeTLS(":"+strconv.Itoa(port), sslcert, sslkey, r)
+					if err != nil {
+						log.Printf("net.https could not listen: %s", err)
+						errs <- err
+					}
+				}(value.Port, value.SslCert, value.SslKey)
+			} else {
+				log.Printf("Unknown protocol %s... Skipping...", value.Name)
+			}
+		} else {
+			log.Printf("Server disabled for protocol:%s", value.Name)
+		}
 	}
+	<-errs
 }

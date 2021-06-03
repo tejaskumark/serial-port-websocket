@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"sync"
-	"errors"
 
 	"gopkg.in/yaml.v2"
 )
@@ -16,7 +16,7 @@ type port struct {
 	Baudrate int    `yaml:"baudrate"`
 	Parity   byte   `yaml:"parity"`
 	Desc     string `yaml:"desc"`
-	Status   uint8   `yaml:"status"`
+	Status   uint8  `yaml:"status"`
 }
 
 // Config type for YAML File marshall/unmarshall
@@ -25,13 +25,13 @@ type Config struct {
 	Ports []port `yaml:"ports"`
 	Logs  struct {
 		Inlogs     string `yaml:"inlogs"`
-		Outlogs    string `yaml:"outlogs"`
 		Maxsize    int    `yaml:"maxsize"`
 		Maxbackups int    `yaml:"maxbackups"`
 		Maxage     int    `yaml:"maxage"`
 	} `yaml:"logs"`
 	ServerConfig []struct {
 		Name    string `yaml:"name"`
+		Enable  int   `yaml:"enable"`
 		Port    int    `yaml:"port"`
 		SslCert string `yaml:"sslcert"`
 		SslKey  string `yaml:"sslkey"`
@@ -102,7 +102,7 @@ func (c *Config) checkElement(portname string) bool {
 	return false
 }
 
-// addElement will add new element provided port name, baudrate 
+// addElement will add new element provided port name, baudrate
 // and description
 func (c *Config) addElement(portname string, baudrate int, des string) error {
 	c.mu.Lock()
