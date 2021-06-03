@@ -89,7 +89,14 @@ func initialize() error {
 	if err != nil {
 		return err
 	}
-
+	// Check logs dir exist or not, if not create dir
+	if _, err := os.Stat(config.Logs.Inlogs); os.IsNotExist(err) {
+		log.Printf("Proided logs dir: %s does not exist. Creating it.", config.Logs.Inlogs)
+		err = os.MkdirAll(config.Logs.Inlogs, os.ModePerm)
+		if err != nil {
+			return err
+		}
+	}
 	// redirect stdErr to stacktrace files
 	fname := config.Logs.Inlogs + "stacktrace-" + strconv.Itoa(os.Getpid())
 	f, err := os.Create(fname)

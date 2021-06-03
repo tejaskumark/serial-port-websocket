@@ -228,6 +228,10 @@
     // Create Table from JSON response
     function CreateTableFromJSON(JSONResponse) {
         document.getElementById("response").innerHTML = "";
+        JSONConvert = JSON.parse(JSONResponse);
+        if (JSONConvert.Ports == null) {
+            return
+        }
         // BUILD Paths
         var col = ["Device Name", "Port", "Baudrate", "", "Port Config"];
 
@@ -249,7 +253,6 @@
 
         // Populate table from JSON Data. 
         var col = [];
-        JSONConvert = JSON.parse(JSONResponse);
         var tb = table.createTBody();
         tb.id += "myTable"
         for (var i = 0; i < JSONConvert.Ports.length; i++) {
