@@ -30,7 +30,7 @@ func initializereader(pn string) {
 				var err error
 				if all.ports[tmpname].port == nil {
 					all.ports[tmpname].port, err = serial.OpenPort(&serial.Config{Name: tmpname,
-						Baud: all.ports[tmpname].baudrate})
+						Baud: all.ports[tmpname].baudrate, ReadTimeout: time.Second * 3})
 					if err == nil {
 						buf := make([]byte, 1024)
 						for {
@@ -41,17 +41,7 @@ func initializereader(pn string) {
 								log.Printf("Stop ack send for mainreader port:%s", tmpname)
 								return
 							default:
-								number, err := all.ports[tmpname].port.Read(buf)
-								if err != nil {
-									log.Printf("Error receiving from stream %s", err)
-									all.ports[tmpname].port = nil
-									break
-								}
-								if buf == nil {
-									log.Printf("Buf is nil.")
-									all.ports[tmpname].port = nil
-									break
-								}
+								number, _ := all.ports[tmpname].port.Read(buf)
 								tmpstring := string(buf[:number])
 								_, _ = all.ports[tmpname].infilelogger.Write(buf[:number])
 								select {
