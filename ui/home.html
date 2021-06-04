@@ -255,6 +255,7 @@
         var col = [];
         var tb = table.createTBody();
         tb.id += "myTable"
+        cellstyle = "word-wrap: break-word;min-width: 70px;max-width: 70px;white-space:normal;"
         for (var i = 0; i < JSONConvert.Ports.length; i++) {
             var row = tb.insertRow(-1);
             var cell0 = row.insertCell(0);
@@ -263,8 +264,11 @@
             var cell3 = row.insertCell(3);
             row.id = JSONConvert.Ports[i].Name
             cell0.innerHTML = JSONConvert.Ports[i].Desc;
+            cell0.style = cellstyle;
             cell1.innerHTML = JSONConvert.Ports[i].Name;
+            cell1.style = cellstyle;
             cell2.innerHTML = JSONConvert.Ports[i].Baudrate;
+            cell2.style = cellstyle;
             var eleid = JSONConvert.Ports[i].Name.split("/").pop();
             var link = "window.open('" + window.location.protocol + "//" + window.location.hostname + ":" + window.location.port +
                 "/port?portname=" + JSONConvert.Ports[i].Name + "')"
@@ -295,10 +299,10 @@
                 getlogs.disabled = true;
                 getconsole.disabled = true;
             }
-            del = createbutton("btn btn-sm btn-danger", null, JSONConvert.Ports[i].Name,
+            del = createbutton("btn btn-sm btn-danger", null, "delete-" + eleid,
                 "Delete", "confirmdelete('" + JSONConvert.Ports[i].Name + "')");
             tmp = { "data-toggle": "modal", "data-target": "#editportmodal" };
-            edit = createbutton("btn btn-sm btn-info mr-2", tmp, JSONConvert.Ports[i].Name,
+            edit = createbutton("btn btn-sm btn-info mr-2", tmp, "edit-" + eleid,
                 "Edit", null);
             row.insertCell(4).append(startstopport, edit, del);
         }
@@ -359,12 +363,23 @@
                     var xhttp = new XMLHttpRequest();
                     xhttp.open("DELETE", "/delete?portname=" + portid, true);
                     xhttp.send();
+                    var eleid = portid.split("/").pop();
+                    $("#startstop-" + eleid).attr("disabled", true);
+                    $("#logs-" + eleid).attr("disabled", true);
+                    $("#edit-" + eleid).attr("disabled", true);
+                    $("#delete-" + eleid).attr("disabled", true);
+                    $("#console-" + eleid).attr("disabled", true);
                     xhttp.onreadystatechange = function () {
                         if (this.readyState == 4 && this.status == 200) {
                             TableCreation();
                         };
                         if (this.readyState == 4 && this.status != 200) {
                             boxalert(this.responseText);
+                            $("#startstop-" + eleid).removeattr("disabled", true);
+                            $("#logs-" + eleid).removeattr("disabled", true);
+                            $("#edit-" + eleid).removeattr("disabled", true);
+                            $("#delete-" + eleid).removeattr("disabled", true);
+                            $("#console-" + eleid).removeattr("disabled", true);
                         }
                     };
                 }
