@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -15,7 +16,9 @@ import (
 )
 
 var (
+	ver    string
 	conf   = flag.String("conf", "", "Configuration file")
+	v      = flag.Bool("version", false, "Get version")
 	all    allports
 	config Config
 )
@@ -122,7 +125,12 @@ func initialize() error {
 }
 
 func main() {
+	ver = "1.2"
 	flag.Parse()
+	if *v {
+		fmt.Println(ver)
+		return
+	}
 	if err := initialize(); err != nil {
 		log.Fatalf("Error while initiliazing %s", err)
 		return
