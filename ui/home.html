@@ -275,7 +275,7 @@
             var getconsole = CreateBtn("btn btn-sm btn-info mr-2", "console-" + eleid,
                 "Get Console", link)
             link = "window.open('" + window.location.protocol + "//" + window.location.hostname + ":" + window.location.port +
-                "/logs/')"
+                "/logs/" + eleid + ".txt')"
             var getlogs = CreateBtn("btn btn-sm btn-info mr-2", "logs-" + eleid,
                 "Get Logs", link)
             cell3.append(getconsole, getlogs);
@@ -313,7 +313,7 @@
         $('#dataTable').DataTable();
     };
 
-    // Editssid function to edit any existing ssid.
+    // Editport function to edit any existing port.
     function editport() {
         data = {};
         orgportname = $("#id").val();

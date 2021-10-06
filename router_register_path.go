@@ -37,8 +37,8 @@ func registerPaths(r *mux.Router) {
 	r.PathPrefix(staticDir).Handler(http.StripPrefix(staticDir, http.FileServer(http.Dir(absPath+staticDir))))
 	fs := http.FileServer(http.Dir(config.Logs.Inlogs))
 	r.PathPrefix("/logs/").Handler(http.StripPrefix("/logs/", fileserve(fs)))
-	r.HandleFunc("/serialconsole", all.webSocketHandler).Queries("portname", "{.*}")
-	r.HandleFunc("/get/config", config.getConfig).Methods("GET")
+	r.HandleFunc("/serialconsole", webSocketHandler).Queries("portname", "{.*}")
+	r.HandleFunc("/get/config", getConfig).Methods("GET")
 	r.HandleFunc("/port", servePortHtml).Methods("GET")
 	r.HandleFunc("/", serveHomeHtml).Methods("GET")
 	r.HandleFunc("/delete", deletePort).Methods("DELETE").Queries("portname", "{.*}")
@@ -47,6 +47,7 @@ func registerPaths(r *mux.Router) {
 	r.HandleFunc("/stop", stopPort).Methods("POST").Queries("portname", "{.*}")
 	r.HandleFunc("/start", startPort).Methods("POST").Queries("portname", "{.*}")
 	r.HandleFunc("/getactivesession", getActiveSession).Methods("GET").Queries("portname", "{.*}")
+	r.HandleFunc("/version", serveVersion).Methods("GET")
 }
 
 // getActiveSession will return active session count on givne port
@@ -60,14 +61,17 @@ func getActiveSession(w http.ResponseWriter, r *http.Request) {
 
 	// check if there are element with respect to such ports, if not return error.
 	if !config.checkElement(pname) || !all.checkElement(pname) {
+		config.mu.Lock()
+		all.mu.Lock()
 		log.Println(config.Ports)
 		log.Println(all.ports)
+		config.mu.Unlock()
+		all.mu.Unlock()
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Config/allport struct missing given port."))
 		return
 	}
-	w.Write([]byte(strconv.Itoa(all.ports[pname].clientactive.connection)))
-	return
+	w.Write([]byte(strconv.Itoa(all.ports[pname].clientactive.getconncount())))
 }
 
 // startPort will start serial port
@@ -87,8 +91,8 @@ func startPort(w http.ResponseWriter, r *http.Request) {
 	if st, _ := all.getStatus(pname); st == 1 {
 		return
 	}
-	config.portStatusUpdate(pname, 1)
-	all.portStatusUpdate(pname, 1)
+	_ = config.portStatusUpdate(pname, 1)
+	_ = all.portStatusUpdate(pname, 1)
 	err := config.writeYaml(*conf)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -97,7 +101,6 @@ func startPort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	initializereader(pname)
-	return
 }
 
 // stopPort will stop serial port
@@ -121,7 +124,10 @@ func stopPort(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Client:%s Serial Port:%s]Main reader go routine closed.",
 		r.RemoteAddr, pname)
 	config.portStatusUpdate(pname, 2)
-	all.initializeport(pname, all.ports[pname].baudrate, 2)
+	all.mu.Lock()
+	tmp := all.ports[pname].baudrate
+	all.mu.Unlock()
+	all.initializeport(pname, tmp, 2)
 	err := config.writeYaml(*conf)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -129,7 +135,6 @@ func stopPort(w http.ResponseWriter, r *http.Request) {
 		log.Panicf("[Client:" + r.RemoteAddr + " Serial Port:" + "]" + pname + err.Error())
 		return
 	}
-	return
 }
 
 // mainReaderClose will close main reader go routine and return
@@ -142,9 +147,10 @@ func mainReaderClose(portname string) bool {
 		default:
 			all.ports[portname].stop <- struct{}{}
 			log.Printf("[Port:%s]Mainreader go routine stop send.", portname)
-			if all.ports[portname].port != nil {
-				all.ports[portname].port.Write([]byte("golang\n"))
-			}
+			// Not needed anymore as we have added timeout on port read and it is non blocking.
+			// if all.ports[portname].port != nil {
+			// 	all.ports[portname].port.Write([]byte("golang\n"))
+			// }
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
@@ -159,15 +165,20 @@ func commonCheck(pname string) (string, int) {
 
 	// check if there are element with respect to such ports, if not return error.
 	if !config.checkElement(pname) || !all.checkElement(pname) {
+		config.mu.Lock()
+		all.mu.Lock()
 		log.Println(config.Ports)
 		log.Println(all.ports)
+		config.mu.Unlock()
+		all.mu.Unlock()
 		return "Config/allport struct missing given port.", http.StatusInternalServerError
 	}
 
 	// check if there are any other existing session active or not.
 	// and lock session on this port any more.
-	if all.ports[pname].clientactive.connection >= 1 {
-		msg := "Can not delete/edit/stop/start port .One session active with IP:" + all.ports[pname].clientactive.raddr + ".Try after sometime."
+	if all.ports[pname].clientactive.getconncount() >= 1 {
+		msg := "Can not delete/edit/stop/start port .One session active with IP:" +
+			all.ports[pname].clientactive.getraaddr() + ".Try after sometime."
 		return msg, http.StatusForbidden
 	}
 	return "", http.StatusOK
@@ -204,7 +215,10 @@ func editPort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	all.ports[pname].clientactive.increment(r.RemoteAddr)
-	if jport.Baudrate == all.ports[pname].baudrate && jport.Newname == pname {
+	all.mu.Lock()
+	tmpbr := all.ports[pname].baudrate
+	all.mu.Unlock()
+	if jport.Baudrate == tmpbr && jport.Newname == pname {
 		err = config.updateElement(jport.Newname, jport.Desc)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -218,21 +232,15 @@ func editPort(w http.ResponseWriter, r *http.Request) {
 			log.Panicf(err.Error())
 		}
 		all.ports[pname].clientactive.decrement()
-		return
 	} else {
-		if st := all.checkElement(jport.Newname); st {
+		if jport.Baudrate == tmpbr && (all.checkElement(jport.Newname) ||
+			config.checkElement(jport.Newname)) {
 			all.ports[pname].clientactive.decrement()
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Provided port name already exist."))
 			return
 		}
-		if st := config.checkElement(jport.Newname); st {
-			all.ports[pname].clientactive.decrement()
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Provided port name already exist."))
-			return
-		}
-		if all.ports[pname].status == 1 {
+		if st, _ := all.getStatus(pname); st == 1 {
 			mainReaderClose(pname)
 			log.Printf("[Client:%s Serial Port:%s]Main reader go routine closed.",
 				r.RemoteAddr, pname)
@@ -269,7 +277,6 @@ func editPort(w http.ResponseWriter, r *http.Request) {
 			r.RemoteAddr, jport.Newname)
 		// start newly added port.
 		initializereader(jport.Newname)
-		return
 	}
 }
 
@@ -315,7 +322,6 @@ func addPort(w http.ResponseWriter, r *http.Request) {
 		r.RemoteAddr, jport.Newname)
 	// start newly added port.
 	initializereader(jport.Newname)
-	return
 }
 
 // deletePort will delete port configuration and cleaup
@@ -330,7 +336,7 @@ func deletePort(w http.ResponseWriter, r *http.Request) {
 	}
 	all.ports[pname].clientactive.increment(r.RemoteAddr)
 
-	if all.ports[pname].status == 1 {
+	if st, _ := all.getStatus(pname); st == 1 {
 		_ = mainReaderClose(pname)
 		log.Printf("[Client:%s Serial Port:%s]Main reader go routine closed.",
 			r.RemoteAddr, pname)
@@ -350,7 +356,6 @@ func deletePort(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Error writing YAML file."))
 		log.Panicf("[Client:" + r.RemoteAddr + " Serial Port:" + "]" + pname + err.Error())
 	}
-	return
 }
 
 // serve static log files
@@ -384,7 +389,7 @@ func servePortHtml(w http.ResponseWriter, r *http.Request) {
 }
 
 // getConfig will return configuration of yaml file into JSON format
-func (c *Config) getConfig(w http.ResponseWriter, r *http.Request) {
+func getConfig(w http.ResponseWriter, r *http.Request) {
 	str, err := config.getJSON()
 	if err != nil {
 		log.Printf("Error in JSON Marshal: %s", err)
@@ -396,7 +401,7 @@ func (c *Config) getConfig(w http.ResponseWriter, r *http.Request) {
 
 // webSocket handler handles any request to access serial port
 // over websocket connection
-func (p *allports) webSocketHandler(w http.ResponseWriter, r *http.Request) {
+func webSocketHandler(w http.ResponseWriter, r *http.Request) {
 	var raddr = r.RemoteAddr
 	var pname = r.FormValue("portname")
 	log.Printf("[Client:%s Serial Port:%s]Starting session",
@@ -414,36 +419,38 @@ func (p *allports) webSocketHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[Client:%s Serial Port:%s]Closed session.",
 			raddr, pname)
 	}()
-	if p.ports[pname].status == 2 {
+	if st, _ := all.getStatus(pname); st == 2 {
 		log.Printf("[Client:%s Serial Port:%s]Port status is disabled.", raddr, pname)
 		conn.WriteMessage(websocket.BinaryMessage, []byte("Please enable port first from UI."))
 		return
 	}
 	// Checking existing number of session and allow or disallow new
 	// session.
-	if p.ports[pname].clientactive.connection >= 1 {
-		msg := "One user session already active with IP:" + p.ports[pname].clientactive.raddr + "."
+	if all.ports[pname].clientactive.getconncount() >= 1 {
+		msg := "One user session already active with IP:" + all.ports[pname].clientactive.getraaddr() + "."
 		conn.WriteMessage(websocket.BinaryMessage, []byte(msg))
 		log.Printf("[Client:%s Serial Port:%s]Session not allowed.", raddr, pname)
 		return
 	} else {
 		// p.ports[pname].clientactive.increment(raddr)
 		log.Printf("[Client:%s Serial Port:%s]Session allowed. Active session count: %d",
-			raddr, pname, p.ports[pname].clientactive.connection)
-		p.ports[pname].clientactive.increment(raddr)
+			raddr, pname, all.ports[pname].clientactive.getconncount())
+		all.ports[pname].clientactive.increment(raddr)
 	}
 
 	// Checking if port is already open and if not open then return
 	// without opening any port read/write.
-	if p.ports[pname].port == nil {
-		p.ports[pname].clientactive.decrement()
+	all.mu.Lock()
+	if all.ports[pname].port == nil {
+		all.mu.Unlock()
+		all.ports[pname].clientactive.decrement()
 		msg := "Port is not yet opened. Please connect port and try again."
 		conn.WriteMessage(websocket.BinaryMessage, []byte(msg))
 		log.Printf("[Client:%s Serial Port:%s]Error: %s",
 			raddr, pname, msg)
 		return
 	}
-
+	all.mu.Unlock()
 	// goroutine to read from port and write to websocket
 	go func() {
 		ticker := time.NewTicker(pingPeriod)
@@ -454,7 +461,7 @@ func (p *allports) webSocketHandler(w http.ResponseWriter, r *http.Request) {
 		}()
 		for {
 			select {
-			case v, ok := <-p.ports[pname].comm:
+			case v, ok := <-all.ports[pname].comm:
 				if !ok {
 					log.Printf("[Client:%s Serial Port:%s]Comm channel is closed.",
 						raddr, pname)
@@ -489,7 +496,7 @@ func (p *allports) webSocketHandler(w http.ResponseWriter, r *http.Request) {
 					raddr, pname, err)
 				done <- struct{}{}
 			}
-			p.ports[pname].clientactive.decrement()
+			all.ports[pname].clientactive.decrement()
 			log.Printf("[Client:%s Serial Port:%s]Go routine read from ws closed.",
 				raddr, pname)
 		}()
@@ -505,7 +512,7 @@ func (p *allports) webSocketHandler(w http.ResponseWriter, r *http.Request) {
 					raddr, pname, err)
 				break
 			}
-			_, err = p.ports[pname].port.Write(reader)
+			_, err = all.ports[pname].port.Write(reader)
 			if err != nil {
 				log.Printf("[Client:%s Serial Port:%s]Error writing to port: %s.",
 					raddr, pname, err)
@@ -533,4 +540,10 @@ func createRouterRegisterPaths() *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	registerPaths(router)
 	return router
+}
+
+// serveVersion handler
+func serveVersion(w http.ResponseWriter, r *http.Request) {
+	msg := "Current Version:" + ver
+	w.Write([]byte(msg))
 }

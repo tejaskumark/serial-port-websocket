@@ -40,6 +40,8 @@ type Config struct {
 
 // writeYaml will write new change config struct to file
 func (config *Config) writeYaml(filename string) error {
+	config.mu.Lock()
+	defer config.mu.Unlock()
 	out, err := yaml.Marshal(config)
 	if err != nil {
 		return err
@@ -68,6 +70,8 @@ func (config *Config) parseYaml(fileName string) error {
 // getJSON will convert struct to JSON format and return
 // converted byte slice or error
 func (config *Config) getJSON() ([]byte, error) {
+	config.mu.Lock()
+	defer config.mu.Unlock()
 	b, err := json.Marshal(config)
 	if err != nil {
 		return []byte(""), err
@@ -94,6 +98,8 @@ func (c *Config) removeElement(portname string) bool {
 // checkElement will check given port into config struct
 // and return true if found or false.
 func (c *Config) checkElement(portname string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, value := range c.Ports {
 		if value.Name == portname {
 			return true
@@ -109,7 +115,7 @@ func (c *Config) addElement(portname string, baudrate int, des string) error {
 	defer c.mu.Unlock()
 	for _, value := range c.Ports {
 		if value.Name == portname {
-			return errors.New("Port name already exist.")
+			return errors.New("port name already exist")
 		}
 	}
 	c.Ports = append(c.Ports, port{Name: portname, Baudrate: baudrate, Desc: des, Status: 1})
@@ -126,7 +132,7 @@ func (c *Config) updateElement(portname string, desc string) error {
 			return nil
 		}
 	}
-	return errors.New("Did not find any element with given port.")
+	return errors.New("did not find any element with given port")
 }
 
 // getStatus will return port status for a given port
@@ -138,7 +144,7 @@ func (c *Config) getStatus(portname string) (uint8, error) {
 			return c.Ports[index].Status, nil
 		}
 	}
-	return 2, errors.New("Port not found.")
+	return 2, errors.New("port not found")
 }
 
 // portStatusUpdate will return port status for a given port
@@ -151,5 +157,5 @@ func (c *Config) portStatusUpdate(portname string, st uint8) error {
 			return nil
 		}
 	}
-	return errors.New("Port not found.")
+	return errors.New("port not found")
 }

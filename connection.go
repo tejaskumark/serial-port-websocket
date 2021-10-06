@@ -23,3 +23,15 @@ func (connect *connection) decrement() {
 	connect.raddr = ""
 	connect.mu.Unlock()
 }
+
+func (connect *connection) getconncount() int {
+	connect.mu.Lock()
+	defer connect.mu.Unlock()
+	return connect.connection
+}
+
+func (connect *connection) getraaddr() string {
+	connect.mu.Lock()
+	defer connect.mu.Unlock()
+	return connect.raddr
+}

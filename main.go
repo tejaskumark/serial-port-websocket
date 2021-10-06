@@ -11,14 +11,14 @@ import (
 
 	"net/http"
 
-	"github.com/tarm/serial"
+	"go.bug.st/serial"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
-	ver    string
-	conf   = flag.String("conf", "", "Configuration file")
-	v      = flag.Bool("version", false, "Get version")
+	ver    string = "1.3"
+	conf          = flag.String("conf", "", "Configuration file")
+	v             = flag.Bool("version", false, "Get version")
 	all    allports
 	config Config
 )
@@ -30,11 +30,20 @@ func initializereader(pn string) {
 	go func(tmpname string) {
 		if all.ports[tmpname].status == 1 {
 			for {
+				log.Printf("Checking port:%s", tmpname)
 				var err error
+				var errstate bool
 				if all.ports[tmpname].port == nil {
-					all.ports[tmpname].port, err = serial.OpenPort(&serial.Config{Name: tmpname,
-						Baud: all.ports[tmpname].baudrate, ReadTimeout: time.Second * 3})
+					mode := &serial.Mode{
+						BaudRate: all.ports[tmpname].baudrate,
+					}
+					all.mu.Lock()
+					all.ports[tmpname].port, err = serial.Open(tmpname, mode)
+					// all.ports[tmpname].port, err = serial.OpenPort(&serial.Config{Name: tmpname,
+					// 	Baud: all.ports[tmpname].baudrate, ReadTimeout: time.Second * 3})
 					if err == nil {
+						all.mu.Unlock()
+						all.ports[tmpname].port.SetReadTimeout(time.Second * 3)
 						buf := make([]byte, 1024)
 						for {
 							select {
@@ -44,7 +53,15 @@ func initializereader(pn string) {
 								log.Printf("Stop ack send for mainreader port:%s", tmpname)
 								return
 							default:
-								number, _ := all.ports[tmpname].port.Read(buf)
+								number, err := all.ports[tmpname].port.Read(buf)
+								if err != nil {
+									log.Printf("Main reader having error:%s for port:%s", err, tmpname)
+									all.mu.Lock()
+									all.ports[tmpname].port = nil
+									all.mu.Unlock()
+									errstate = true
+									break
+								}
 								tmpstring := string(buf[:number])
 								_, _ = all.ports[tmpname].infilelogger.Write(buf[:number])
 								select {
@@ -52,8 +69,14 @@ func initializereader(pn string) {
 								default:
 								}
 							}
+							if errstate {
+								errstate = false
+								break
+							}
 						}
 					} else {
+						all.ports[tmpname].port = nil
+						all.mu.Unlock()
 						select {
 						case <-all.ports[tmpname].stop:
 							log.Printf("Stopping mainreader for port:%s", tmpname)
@@ -61,9 +84,9 @@ func initializereader(pn string) {
 							log.Printf("Stop ack send for mainreader port:%s", tmpname)
 							return
 						default:
-							time.Sleep(10 * time.Second)
 							log.Printf("Error: %s opening port %s, will retry after 10Seconds.",
 								err, tmpname)
+							time.Sleep(10 * time.Second)
 						}
 
 					}
@@ -125,7 +148,6 @@ func initialize() error {
 }
 
 func main() {
-	ver = "1.2"
 	flag.Parse()
 	if *v {
 		fmt.Println(ver)
