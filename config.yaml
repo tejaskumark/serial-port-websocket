@@ -16,7 +16,7 @@ ports:
     status: 1
 logs:
   inlogs: /var/serial-port-websocket/logs/
-  maxsize: 50 #Megabytes
+  maxsize: 20 #Megabytes
   maxbackups: 10 #Number of Files
   maxage: 30 #Number of Days
 serverconfig:
